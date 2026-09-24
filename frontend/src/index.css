@@ -1,0 +1,276 @@
+/* Styling sederhana tapi modern - CSS biasa, tanpa framework */
+
+:root {
+  --primary: #2f6fed;
+  --primary-dark: #1e4fb8;
+  --bg: #f4f6fb;
+  --card-bg: #ffffff;
+  --text: #1f2430;
+  --muted: #6b7280;
+  --border: #e2e5ec;
+  --success: #1a9d5c;
+  --danger: #d64545;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.app-title {
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 1px;
+  margin-bottom: 24px;
+  color: var(--primary-dark);
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-bottom: 24px;
+}
+
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.upload-title {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.file-name {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 8px;
+  margin-top: 8px;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.btn-secondary {
+  background: #eef1f7;
+  color: var(--text);
+}
+
+.status-progress {
+  margin-top: 16px;
+}
+
+.status-text {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 10px;
+  background: #e9ecf3;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.4s ease;
+}
+
+.progress-percent {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.error-box {
+  background: #fdecec;
+  color: var(--danger);
+  border: 1px solid #f5c2c2;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.warning-box {
+  background: #fff8e6;
+  border: 1px solid #f3dd9a;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.meta-info {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+.job-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.job-table th,
+.job-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.job-row {
+  cursor: pointer;
+}
+
+.job-row:hover {
+  background: #f7f9fd;
+}
+
+.empty-state {
+  color: var(--muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.modal-company {
+  color: var(--muted);
+  margin-top: -8px;
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.modal-grid strong {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.modal-skills ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 16px;
+}
+
+.modal-skills li {
+  color: var(--success);
+  font-size: 14px;
+}
+
+.modal-description p,
+.modal-breakdown ul {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0 16px;
+}
+
+.modal-breakdown ul {
+  list-style: none;
+  padding: 0;
+}
+
+.salary-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.salary-badge--pass {
+  background: #e3f7e9;
+  color: #1a7f3c;
+}
+
+.salary-badge--reject {
+  background: #fdecea;
+  color: #c0392b;
+}
+
+.salary-badge--unknown {
+  background: #eee;
+  color: #666;
+}
