@@ -53,6 +53,15 @@ Daftar ini merangkum perbaikan atas masalah-masalah yang sebelumnya ditemukan:
     target, posisi diambil dari sebutan posisi di CV atau ditebak dari kombinasi skill.
 13. **Launcher browser sadar serverless.** Di Vercel/Lambda, scraper memakai `playwright-core` +
     `@sparticuz/chromium`; di lokal/Docker memakai `playwright` biasa. Ditambah `backend/Dockerfile`.
+14. **Fix error `Target page, context or browser has been closed`.** Launcher sekarang menggunakan `launchPersistentContext()`
+    per request dan tidak lagi membuat BrowserContext kedua dengan `browser.newContext()`.
+15. **Scraper Glints dipindah dari selector HTML lama ke GraphQL search.** Pencarian sekarang memakai `searchJobsV3`
+    dari dalam browser Playwright, sehingga tidak bergantung pada class `JobCard` dan pagination DOM lama.
+    Tanggal posting diambil langsung dari `createdAt`, sehingga filter 5 hari tidak bergantung pada teks tanggal di kartu.
+16. **Fix Docker production dependency.** `playwright` dipindah dari `devDependencies` ke `dependencies` karena
+    image production menjalankan Chromium Playwright saat runtime.
+17. **Konfigurasi Vercel ditambahkan.** `backend/vercel.json` mengatur `maxDuration` dan bundling
+    `@sparticuz/chromium`.
 
 ---
 
@@ -79,7 +88,7 @@ job-tracker/
 
 ## 2. Cara install
 
-Butuh **Node.js versi 18 ke atas**.
+Butuh **Node.js 24.x** (sesuai `engines` di `backend/package.json`).
 
 ### Backend
 
@@ -148,8 +157,12 @@ npm run test-scraper -- "Data Analyst"
 ```
 
 Ini akan menjalankan `scrapers/testScraper.js` dan mencetak beberapa hasil mentah ke terminal.
-Berguna untuk mengecek apakah selector di `glintsScraper.js` masih cocok dengan struktur
-halaman Glints saat ini.
+Berguna untuk mengecek apakah GraphQL endpoint Glints dan browser runtime dapat diakses.
+Untuk test parser tanpa internet/browser:
+
+```bash
+node scrapers/testGlintsParser.js
+```
 
 ---
 
@@ -160,15 +173,12 @@ halaman Glints saat ini.
   dengan pencocokan word-boundary (`utils/textMatch.js`). Juga mengekstrak taksiran lama pengalaman
   kerja (`experienceYears`), level senioritas kasar (`seniority`), dan frekuensi skill (`skillFrequency`).
 
-- **Scraper Glints (`backend/scrapers/glintsScraper.js`)** — memakai Playwright untuk membuka
-  halaman pencarian publik Glints (tanpa login), lalu mengambil data lowongan (termasuk cuplikan
-  deskripsi dari kartu listing). Selector CSS dikumpulkan di satu tempat (`SELECTORS`) supaya
-  mudah diperbarui kalau struktur halaman Glints berubah. Scraper menunggu elemen benar-benar
-  muncul (bukan jeda tetap), retry ringan untuk kegagalan jaringan sementara, mendeteksi halaman
-  blokir/captcha secara eksplisit, dan memberi jeda antar-request yang diacak (jitter) supaya
-  tidak membebani server Glints. `fetchDescriptionsForJobs()` mengambil deskripsi LENGKAP dari
-  halaman detail, tapi hanya untuk kandidat-kandidat teratas (`DESCRIPTION_ENRICH_LIMIT`), bukan
-  semua job, supaya tetap ramah ke server Glints.
+- **Scraper Glints (`backend/scrapers/glintsScraper.js`)** — memakai Playwright sebagai browser
+  runtime, tetapi pencarian utama tidak lagi membaca kartu HTML. Scraper mengirim query
+  `searchJobsV3` ke GraphQL Glints dari dalam page browser, mengambil `title/company/city/salary/createdAt`,
+  lalu membuat URL detail job. Ini membuat pencarian tidak tergantung class CSS dan pagination DOM lama.
+  Request transient pada browser di-retry, pencarian memakai persistent context per request, dan
+  `fetchDescriptionsForJobs()` tetap membuka halaman detail publik untuk kandidat teratas saja.
 
 - **Date Parser (`backend/utils/dateParser.js`)** — mengubah teks tanggal seperti "2 days ago"
   atau "21 Sep 2026" menjadi format standar `YYYY-MM-DD`, lalu dipakai untuk memfilter lowongan
@@ -203,15 +213,13 @@ halaman Glints saat ini.
   `{ "nama daerah": angka, ... }`.
 - Tidak ada database — semua hasil hilang setiap kali backend di-restart atau user klik
   **NEW SEARCH**.
-- Kalau struktur halaman Glints berubah total, scraper masih bisa gagal mengambil data (sudah
-  lebih tahan banting, tapi tidak kebal 100%). Kalau itu terjadi, cek pesan error dulu — sekarang
-  sudah dibedakan antara "selector tidak cocok" vs "kemungkinan diblokir/captcha" — lalu update
-  daftar `SELECTORS` di `backend/scrapers/glintsScraper.js` sesuai struktur HTML terbaru (cek
-  lewat DevTools browser).
+- Endpoint GraphQL Glints yang dipakai scraper adalah endpoint internal/undocumented dan dapat
+  berubah tanpa pemberitahuan. Bila Glints mengubah schema `searchJobsV3`, parser GraphQL perlu
+  diperbarui.
+- WAF/rate-limit Glints tetap dapat menolak request. Aplikasi tidak melakukan bypass CAPTCHA; error
+  ditampilkan sebagai warning daripada dipalsukan menjadi "0 lowongan".
 - Deskripsi lengkap lowongan hanya diambil untuk `DESCRIPTION_ENRICH_LIMIT` kandidat teratas per
-  pencarian (default 25), bukan semua lowongan yang ditemukan, supaya tidak membebani Glints.
-  Lowongan di luar itu tetap ikut diberi skor, hanya saja pakai cuplikan deskripsi dari listing
-  (kalau ada) alih-alih deskripsi lengkap.
+  pencarian (default 3 pada konfigurasi ini), bukan semua lowongan yang ditemukan.
 
 ---
 
@@ -232,98 +240,36 @@ tetap kecil karena setiap pencarian menggunakan Playwright/Chromium.
 
 ## 9. Deployment
 
-- **Frontend**: bisa langsung di-deploy ke **Vercel** (`frontend/` sebagai root project).
-  Set environment variable `VITE_API_BASE_URL` ke URL backend yang sudah online.
-- **Backend**: karena memakai Playwright (butuh browser Chromium), backend **tidak bisa**
-  di-deploy sebagai serverless function biasa. Deploy ke service Node.js yang mendukung
-  Playwright/browser (misalnya VPS, Railway, Render dengan buildpack yang mendukung Playwright,
-  atau container Docker yang sudah menginstall dependency Chromium).
-- Scraping dengan Playwright **tidak boleh** dijalankan langsung dari browser React — selalu
-  lewat backend Express.
+- **Frontend**: deploy `frontend/` sebagai project Vercel/Vite dan set `VITE_API_BASE_URL` ke URL backend.
+- **Backend**: bisa dijalankan di Docker/VM atau Vercel serverless. Untuk Vercel, scraper menggunakan
+  `playwright-core` + `@sparticuz/chromium`; untuk local/Docker, `playwright` biasa.
+- Scraping tetap dijalankan di backend, bukan dari React browser.
 
-### Opsi A (disarankan): backend di Docker (Render / Railway / Fly.io)
+### Opsi A: backend Docker (Render / Railway / Fly.io / VPS)
 
-`backend/Dockerfile` sudah menyiapkan Chromium + dependency sistemnya. Deploy folder `backend/` sebagai
-Docker service, isi env (`CORS_ORIGIN=https://<domain-frontend-kamu>`), lalu set `VITE_API_BASE_URL` di
-Vercel (project frontend) ke URL backend tersebut. Tidak ada batas durasi request seperti di serverless.
+`backend/Dockerfile` menginstall Chromium + dependency sistem. Deploy folder `backend/` sebagai service Node/Docker
+dan isi `CORS_ORIGIN=https://<domain-frontend-kamu>`. Karena browser berjalan persistent context per request,
+set `MAX_CONCURRENT_SEARCHES` tetap kecil (umumnya 1).
 
-### Opsi B: backend tetap di Vercel
+### Opsi B: backend Vercel
 
-Bisa, tapi rapuh. Yang wajib:
+Repository sudah menyertakan `backend/vercel.json` untuk mengatur `maxDuration` dan memastikan file `@sparticuz/chromium`
+ikut dibundle. Root Directory project backend = `backend`, Node.js = 24.x. Gunakan konfigurasi ringan: `MAX_KEYWORDS=5`,
+`MAX_PAGES_PER_KEYWORD=1`, `DESCRIPTION_ENRICH_LIMIT=3`, `SCRAPE_DELAY_MS=500`, `MAX_CONCURRENT_SEARCHES=1`.
 
-1. `cd backend && npm install @sparticuz/chromium playwright-core`, commit `package-lock.json`.
-2. Pastikan file binary Chromium ikut ter-bundle ke function. Di `backend/vercel.json`:
-   ```json
-   {
-     "functions": {
-       "server.js": {
-         "maxDuration": 60,
-         "includeFiles": "node_modules/@sparticuz/chromium/**"
-       }
-     }
-   }
-   ```
-   Sesuaikan `maxDuration` dengan batas plan kamu; kalau Vercel menolak pola `server.js`, cocokkan
-   dengan nama function yang muncul di build log.
-3. Kecilkan beban satu request supaya muat di batas durasi: `MAX_PAGES_PER_KEYWORD=2`,
-   `DESCRIPTION_ENRICH_LIMIT=8`, `SCRAPE_DELAY_MS=800`.
-4. Rate limit dan `MAX_CONCURRENT_SEARCHES` bersifat in-memory per instance, jadi tidak berlaku
-   lintas instance serverless.
-5. IP datacenter (Vercel/AWS) lebih sering kena captcha/blokir dari Glints dibanding VPS biasa.
+Jangan mengisi `VITE_API_BASE_URL` production dengan `http://localhost:5000`. Untuk upload CV, perhatikan batas request
+body platform serverless; bila file CV besar, lebih aman pakai storage/client upload.
 
+### Test setelah deploy
 
-## 8. Deployment ke Vercel
-
-Arsitektur yang disarankan adalah dua project Vercel: `frontend` sebagai Vite static app dan `backend` sebagai Express app. Backend memakai Playwright + `@sparticuz/chromium`, sehingga beban scraping perlu dibatasi.
-
-### Frontend
-- Root Directory: `frontend`
-- Framework: Vite
-- Build Command: `npm run build`
-- Output Directory: `dist`
-- Environment Variable: `VITE_API_BASE_URL=https://URL-BACKEND-VERCEL`
-
-### Backend
-- Root Directory: `backend`
-- Framework: Express
-- Build/Install: default Vercel
-- Environment Variables yang disarankan untuk Hobby: `NODE_ENV=production`, `CORS_ORIGIN=https://URL-FRONTEND-VERCEL`, `MAX_KEYWORDS=5`, `MAX_PAGES_PER_KEYWORD=1`, `DESCRIPTION_ENRICH_LIMIT=3`, `SCRAPE_DELAY_MS=500`, `MAX_CONCURRENT_SEARCHES=1`, `MAX_POSTING_AGE_DAYS=5`
-
-Jangan mengisi `VITE_API_BASE_URL` production dengan `http://localhost:5000`, karena nilai `VITE_*` tertanam saat build frontend.
-
-Catatan penting: endpoint upload CV lewat Vercel Function terkena batas request body 4,5 MB, sehingga batas Multer 10 MB tidak bisa dipakai penuh di Vercel. Untuk MVP, batasi ukuran CV yang dipilih user ke sekitar 4 MB atau pindahkan upload file ke object storage/client upload.
-
-Endpoint pencarian melakukan browser automation dan streaming progress. Vercel mendukung Express dan streaming, tetapi setiap request tetap mempunyai batas durasi Function; Hobby saat ini maksimal 300 detik dengan Fluid Compute.
-
-
-## 8. Deploy backend ke Vercel
-
-Untuk repository ini, buat project Vercel khusus backend dan set **Root Directory** ke `backend`.
-Pastikan deployment menggunakan Node.js 24.x. Dependency runtime berada di `dependencies`, sedangkan `playwright`
-untuk menjalankan Chromium lokal berada di `devDependencies`; environment serverless menggunakan `playwright-core`
-+ `@sparticuz/chromium`.
-
-Environment production yang disarankan untuk Vercel Hobby:
-
-```text
-NODE_ENV=production
-MAX_KEYWORDS=5
-MAX_PAGES_PER_KEYWORD=1
-DESCRIPTION_ENRICH_LIMIT=3
-SCRAPE_DELAY_MS=500
-MAX_POSTING_AGE_DAYS=5
-MAX_CONCURRENT_SEARCHES=1
-CORS_ORIGIN=https://URL-FRONTEND-KAMU.vercel.app
+```bash
+cd backend
+npm run test-scraper -- "Data Analyst"
+node scrapers/testGlintsParser.js
 ```
 
-Setelah deploy, tes `GET /api/health`. Jika endpoint hidup, tes pencarian job dari frontend.
+`testGlintsParser.js` tidak butuh internet dan hanya memvalidasi transformasi data. `testScraper.js` memvalidasi
+akses runtime nyata ke Glints dari environment tempat backend berjalan.
 
-Setelah deploy backend, buka `https://URL-BACKEND.vercel.app/api/browser-check`. Respons sukses berbentuk JSON
-dan menandakan `@sparticuz/chromium` + `playwright-core` berhasil dimuat serta executable Chromium berhasil disiapkan.
-Jika muncul error import Chromium, lihat pesan error baru di warning aplikasi karena sekarang kode menampilkan
-error module yang sebenarnya, bukan lagi menyebut dependency sekadar “belum terpasang”.
-
-## Vercel date-filter fix (24 Sep 2026)
-- Glints date text now has a fallback extractor from the whole job card when class/time selectors miss it.
-- Date parser supports relative week/month forms in addition to day/hour forms.
-- Search result warns when a posting date cannot be parsed instead of silently making all results look empty.
+> Catatan: endpoint GraphQL yang dipakai pencarian Glints adalah endpoint internal/undocumented yang terlihat dipakai
+> oleh halaman search. Endpoint ini dapat berubah dan dapat dilindungi WAF/rate-limit; aplikasi tidak melakukan bypass.

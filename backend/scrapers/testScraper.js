@@ -16,7 +16,7 @@ async function main() {
   } catch (error) {
     console.error("Scraping gagal:", error.message);
     console.error(
-      "Kemungkinan penyebab: struktur halaman Glints berubah (perlu update selector di glintsScraper.js), " +
+      "Kemungkinan penyebab: endpoint GraphQL Glints/WAF berubah, browser Chromium tidak tersedia, " +
         "atau koneksi internet/akses ke glints.com bermasalah."
     );
   }

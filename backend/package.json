@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test-scraper": "node scrapers/testScraper.js"
+    "test-scraper": "node scrapers/testScraper.js",
+    "test-glints-parser": "node scrapers/testGlintsParser.js"
   },
   "dependencies": {
     "@sparticuz/chromium": "153.0.0",
@@ -15,11 +16,11 @@
     "express": "^4.19.2",
     "multer": "^2.3.0",
     "pdf-parse": "^1.1.1",
+    "playwright": "1.63.0",
     "playwright-core": "1.63.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4",
-    "playwright": "1.63.0"
+    "nodemon": "^3.1.4"
   },
   "engines": {
     "node": "24.x"
