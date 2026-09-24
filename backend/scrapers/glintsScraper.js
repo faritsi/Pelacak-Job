@@ -88,6 +88,40 @@ async function tryGetText(cardHandle, selectorList) {
   return null;
 }
 
+async function tryGetRawCardText(cardHandle) {
+  try {
+    const text = await cardHandle.innerText();
+    if (text && text.trim()) return text.replace(/\s+/g, " ").trim();
+  } catch (_e) {
+    try {
+      const text = await cardHandle.textContent();
+      if (text && text.trim()) return text.replace(/\s+/g, " ").trim();
+    } catch (_e2) {
+      // biarkan null
+    }
+  }
+  return null;
+}
+
+function extractPostedDateFallback(cardText) {
+  const text = String(cardText || "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+
+  const patterns = [
+    /\b(?:today|yesterday|hari ini|kemarin)\b/i,
+    /\b\d+\s*(?:minutes?|menit|hours?|jam|days?|hari|weeks?|minggu|months?|bulan)(?:\s*(?:ago|yang lalu))?\b/i,
+    /\b\d{1,2}\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|mei|may|jun(?:e)?|jul(?:y)?|agu(?:st)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|des(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?\b/i,
+    /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|mei|may|jun(?:e)?|jul(?:y)?|agu(?:st)?|aug(?:ust)?|sep(?:tember)?|okt(?:ober)?|oct(?:ober)?|nov(?:ember)?|des(?:ember)?|dec(?:ember)?)\s+\d{1,2},?\s+\d{4}\b/i,
+    /\b\d{4}-\d{2}-\d{2}\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[0];
+  }
+  return null;
+}
+
 async function tryGetHref(cardHandle) {
   try {
     const href = await cardHandle.getAttribute("href");
@@ -185,7 +219,12 @@ async function extractJobsFromPage(page) {
     const company = await tryGetText(card, SELECTORS.company);
     const location = await tryGetText(card, SELECTORS.location);
     const salary = await tryGetText(card, SELECTORS.salary);
-    const postedDateRaw = await tryGetText(card, SELECTORS.postedDate);
+    let postedDateRaw = await tryGetText(card, SELECTORS.postedDate);
+    const cardText = await tryGetRawCardText(card);
+    // Fallback penting: markup Glints dapat memindahkan teks tanggal ke elemen/div
+    // tanpa class "posted" atau <time>. Tanpa fallback ini semua job terbaca, tetapi
+    // postedDateRaw=null lalu seluruhnya terbuang di filter <= N hari.
+    if (!postedDateRaw) postedDateRaw = extractPostedDateFallback(cardText);
     const shortDescription = await tryGetText(card, SELECTORS.shortDescription);
     const url = await tryGetHref(card);
 

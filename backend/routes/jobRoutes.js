@@ -142,12 +142,17 @@ router.post("/search-jobs", searchRateLimit, async (req, res) => {
 
     emit({ type: "progress", stage: "filtering", percent: 55, message: "Memfilter berdasarkan tanggal posting..." });
     const candidates = [];
+    let unparsedPostedDates = 0;
 
     for (const job of uniqueJobs) {
       if (abortController.signal.aborted) return;
       if (!job.title || !job.url) continue;
 
       const postedDate = parsePostedDate(job.postedDateRaw);
+      if (!postedDate) {
+        unparsedPostedDates += 1;
+        continue;
+      }
       if (!isWithinLastNDays(postedDate, MAX_POSTING_AGE_DAYS)) continue;
 
       const { minSalary, maxSalary } = parseSalary(job.salary);
@@ -167,6 +172,14 @@ router.post("/search-jobs", searchRateLimit, async (req, res) => {
         url: job.url,
         source: job.source || "Glints",
         description: job.description || null,
+      });
+    }
+
+    if (unparsedPostedDates > 0) {
+      emit({
+        type: "progress",
+        stage: "warning",
+        message: `${unparsedPostedDates} lowongan dilewati karena tanggal posting tidak dapat dibaca.`,
       });
     }
 
@@ -217,7 +230,10 @@ router.post("/search-jobs", searchRateLimit, async (req, res) => {
         totalFound: uniqueJobs.length,
         totalPassed: candidates.length,
         topJobs,
-        warnings: scrapeErrors.length > 0 ? scrapeErrors : undefined,
+        warnings: [
+          ...(scrapeErrors.length > 0 ? scrapeErrors : []),
+          ...(unparsedPostedDates > 0 ? [`${unparsedPostedDates} lowongan dilewati karena tanggal posting tidak dapat dibaca.`] : []),
+        ],
       },
     });
     return res.end();

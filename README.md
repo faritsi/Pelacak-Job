@@ -322,3 +322,8 @@ Setelah deploy backend, buka `https://URL-BACKEND.vercel.app/api/browser-check`.
 dan menandakan `@sparticuz/chromium` + `playwright-core` berhasil dimuat serta executable Chromium berhasil disiapkan.
 Jika muncul error import Chromium, lihat pesan error baru di warning aplikasi karena sekarang kode menampilkan
 error module yang sebenarnya, bukan lagi menyebut dependency sekadar “belum terpasang”.
+
+## Vercel date-filter fix (24 Sep 2026)
+- Glints date text now has a fallback extractor from the whole job card when class/time selectors miss it.
+- Date parser supports relative week/month forms in addition to day/hour forms.
+- Search result warns when a posting date cannot be parsed instead of silently making all results look empty.

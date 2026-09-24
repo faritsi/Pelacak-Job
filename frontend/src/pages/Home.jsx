@@ -183,7 +183,7 @@ export default function Home() {
           </p>
           <p className="meta-info">
             Filters: Posted {"<="} 5 hari, CV Match &nbsp;|&nbsp;
-            Total ditemukan: {searchResult.totalFound}, Diproses & diberi skor: {searchResult.totalPassed}
+            Total ditemukan: {searchResult.totalFound}, Lolos filter & diproses: {searchResult.totalPassed}
           </p>
           <p className="meta-info">
             Catatan: gaji di bawah UMR TIDAK dibuang dari hasil — hanya memengaruhi skor

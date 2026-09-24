@@ -26,8 +26,8 @@ function parsePostedDate(rawText, referenceDate = new Date()) {
 
   const text = rawText.trim().toLowerCase();
 
-  // Kasus 1: "today" / "hari ini"
-  if (text.includes("today") || text.includes("hari ini")) {
+  // Kasus 1: "today" / "just now" / "recently" / "hari ini"
+  if (text.includes("today") || text.includes("just now") || text.includes("recently") || text.includes("hari ini")) {
     return toISODate(referenceDate);
   }
 
@@ -38,17 +38,25 @@ function parsePostedDate(rawText, referenceDate = new Date()) {
     return toISODate(d);
   }
 
-  // Kasus 3: "N day(s) ago" atau "N hari yang lalu"
-  const relativeMatch = text.match(/(\d+)\s*(day|days|hari)/);
+  // Kasus 3: relatif dalam hari/minggu/bulan. Glints saat ini dapat menampilkan
+  // variasi seperti "5 days ago", "5 hari yang lalu", atau "1 week ago".
+  const relativeMatch = text.match(/(\d+)\s*(day|days|hari|week|weeks|minggu|month|months|bulan)(?:\s*(?:ago|yang lalu))?/i);
   if (relativeMatch) {
-    const daysAgo = parseInt(relativeMatch[1], 10);
+    const amount = parseInt(relativeMatch[1], 10);
+    const unit = relativeMatch[2].toLowerCase();
     const d = new Date(referenceDate);
-    d.setDate(d.getDate() - daysAgo);
+    if (unit.startsWith("week") || unit === "minggu") {
+      d.setDate(d.getDate() - amount * 7);
+    } else if (unit.startsWith("month") || unit === "bulan") {
+      d.setMonth(d.getMonth() - amount);
+    } else {
+      d.setDate(d.getDate() - amount);
+    }
     return toISODate(d);
   }
 
   // Kasus 4: jam/menit yang lalu -> dianggap hari ini
-  if (/(hour|minute|jam|menit)/.test(text)) {
+  if (/(hour|hours|minute|minutes|jam|menit)/i.test(text)) {
     return toISODate(referenceDate);
   }
 
